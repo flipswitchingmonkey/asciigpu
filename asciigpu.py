@@ -79,54 +79,19 @@ class GpuInfoModel(object):
         # print(ret)
         return ret
 
-class ProgressBar(Label):
-    _progress = 0
-
-    def __init__(self, value, width=100, minval=0, maxval=100, height=1, align="<"):
-        """
-        :param label: The text to be displayed for the Label.
-        :param height: Optional height for the label.  Defaults to 1 line.
-        :param align: Optional alignment for the Label.  Defaults to left aligned.
-            Options are "<" = left, ">" = right and "^" = centre
-        """
-        # Labels have no value and so should have no name for look-ups either.
-        super(Label, self).__init__(None, tab_stop=False)
-        # Although this is a label, we don't want it to contribute to the layout
-        # tab calculations, so leave internal `_label` value as None.
-        self._progress = value
-        self._minval = minval
-        self._maxval = maxval
-        self._width = width
-        self._required_height = height
-        self._align = align
-        self._text = "***"
-
-    def update(self, frame_no):
-        (colour, attr, bg) = self._frame.palette["label"]
-        self._text = ""
-        for i in range(self._progress):
-            self._text += "■"
-        for i, text in enumerate(_split_text(self._text, self._w, self._h, self._frame.canvas.unicode_aware)):
-            self._frame.canvas.paint(
-                "{:{}{}}".format(self._text, self._align, self._w), self._x, self._y + i, colour, attr, bg)
-
-    @property
-    def progress(self):
-        return self._progress
-
-    @progress.setter
-    def progress(self, new_value):
-        self._progress = new_value
-
 class MainView(Frame):
+    _currentPick = 0
+
     def __init__(self, screen, model):
+        global _detailIsOpen
+        _detailIsOpen == False
         super(MainView, self).__init__(screen,
                                     int(screen.height * 0.9),
                                     int(screen.width * 0.9),
                                     on_load=self._reload_list,
                                     hover_focus=True,
                                     can_scroll=False,
-                                    title="GPU List")
+                                    title="asciiGPU {0} (Michael Auerswald @ 908video GmbH)".format(_version))
         # Save off the model that accesses the contacts database.
         self._model = model
         self._refresh = _defaultRefresh
@@ -140,17 +105,19 @@ class MainView(Frame):
             columns=[25,55,10,10],
             options=model.get_columns(),
             titles=["GPU", "Usage", "Usage", "Temp"],
-            on_change=self._on_pick)
+            on_change=self._on_pick,
+            on_select=self._on_select)
         layout.add_widget(self._list_view)
         layout2 = Layout([1, 1, 1, 1])
         self.add_layout(layout2)
         self._refresh_label = Label("Refresh(s): {0:.2f}".format(self._refresh))
         layout2.add_widget(Button("Quit", self._quit), 0)
         layout2.add_widget(self._refresh_label, 1)
-        layout2.add_widget(Button("-", self._refresh_minus), 2)
-        layout2.add_widget(Button("+", self._refresh_plus), 3)
-
-        # self.startTimer()
+        # layout2.add_widget(Button("-", self._refresh_minus), 2)
+        # layout2.add_widget(Button("+", self._refresh_plus), 3)
+        layout3 = Layout([1])
+        self.add_layout(layout3)
+        layout3.add_widget(Label("Press 'q' or 'Esc' to exit. '+'/'-' to change refresh rate.", align="^"), 0)
 
         self.fix()
         self._on_pick()
@@ -166,42 +133,90 @@ class MainView(Frame):
         self._reload_list()
 
     def _on_pick(self):
-        pass
-    #     self._edit_button.disabled = self._list_view.value is None
-    #     self._delete_button.disabled = self._list_view.value is None
+        self._currentPick = self._list_view.value
+
+    def _on_select(self):
+        index = self._currentPick
+        raise NextScene("Detail")
 
     def _reload_list(self, new_value=None):
-        # print("reloading")
         global _updateThread
+        temp = self._currentPick
         self._list_view.options = self._model.get_columns()
-        self._list_view.value = new_value
+        self._list_view.value = temp
         _screen.force_update()
         if _updateThread and _updateThread.is_alive:
             _updateThread.cancel()
         _updateThread = Timer(self._refresh, self._reload_list)
         _updateThread.start()
 
-    # def _add(self):
-        # pass
-    #     self._model.current_id = None
-    #     raise NextScene("Edit Contact")
-
-    # def _edit(self):
-        # pass
-    #     self.save()
-    #     self._model.current_id = self.data["contacts"]
-    #     raise NextScene("Edit Contact")
-
-    #def _delete(self):
-    #     pass
-    #     self.save()
-    #     self._model.delete_contact(self.data["contacts"])
-    #     self._reload_list()
+    def _show_detail(self):
+        global _detailIsOpen
+        _detailIsOpen = True
+        pass
 
     @staticmethod
     def _quit():
         raise StopApplication("User pressed quit")
 
+
+class DetailView(Frame):
+    def __init__(self, screen, model):
+        global _detailIsOpen
+        _detailIsOpen = True
+        super(DetailView, self).__init__(screen,
+                                    int(screen.height * 0.8),
+                                    int(screen.width * 0.8),
+                                    on_load=self._reload_list,
+                                    hover_focus=True,
+                                    can_scroll=False,
+                                    title="Detail View")
+        # Save off the model that accesses the contacts database.
+        self._model = model
+        self._refresh = _defaultRefresh
+
+        layout = Layout([1], fill_frame=True)
+        self.add_layout(layout)
+
+        # Create the form for displaying the list of contacts.
+        self._list_view = MultiColumnListBox(
+            height=Widget.FILL_FRAME,
+            columns=[1,1],
+            options=model.get_columns(),
+            titles=["Parameter", "Value"],
+            on_change=self._on_pick)
+        layout.add_widget(self._list_view)
+        layout2 = Layout([1, 1, 1, 1])
+        self.add_layout(layout2)
+        layout2.add_widget(Button("close", self._cancel), 0)
+        layout3 = Layout([1])
+        self.add_layout(layout3)
+        layout3.add_widget(Label("Press 'Esc' to close.", align="^"), 0)
+
+        self.fix()
+        self._on_pick()
+
+    def _on_pick(self):
+        pass
+    #     self._edit_button.disabled = self._list_view.value is None
+    #     self._delete_button.disabled = self._list_view.value is None
+
+    def _reload_list(self, new_value=None):
+        global _updateThread
+        self._list_view.options = self._model.get_columns()
+        self._list_view.value = new_value
+        # _screen.force_update()
+
+        if _updateThread and _updateThread.is_alive:
+            _updateThread.cancel()
+        _updateThread = Timer(self._refresh, self._reload_list)
+        _updateThread.start()
+
+    @staticmethod
+    def _cancel():
+        global _detailIsOpen
+        _detailIsOpen = False
+        raise NextScene("Main")
 
 def shutdown():
     global _updateThread
@@ -213,21 +228,32 @@ def shutdown():
     sys.exit(0)
 
 def global_shortcuts(event):
+    global _mainView, _detailIsOpen
     if isinstance(event, KeyboardEvent):
         c = event.key_code
-        # print(c)
+        print(c)
         # Stop on ctrl+q or ctrl+x
-        if c == 113 or c == -1:
-            raise StopApplication("User terminated app")
-        if c in (17, 24):
+        if c == 45:
+            _mainView._refresh_minus()
+        elif c == 43:
+            _mainView._refresh_plus()
+        elif c == 113 or c == -1:
+            if _detailIsOpen == False:
+                raise StopApplication("User terminated app")
+            else:
+                _detailIsOpen = False
+                raise NextScene("Main")
+        elif c in (17, 24):
             raise StopApplication("User terminated app")
 
 def main(screen, scene):
-    global _mainView, _screen
+    global _mainView, _detailView, _screen
     _screen = screen
-    mainview = MainView(screen, _gpuinfo)
+    _mainView = MainView(screen, _gpuinfo)
+    _detailView = DetailView(screen, _gpuinfo)
     scenes = [
-        Scene([mainview], -1, name="Main")
+        Scene([_mainView], -1, name="Main"),
+        Scene([_detailView], -1, name="Detail")
     ]
     # scenes = [
     #     Scene([ListView(screen, contacts)], -1, name="Main"),
@@ -239,12 +265,15 @@ def main(screen, scene):
 
 
 last_scene = None
+_version = 0.11
 _defaultRefresh = 0.5
 _Gpus = []
 _screen = None
 _updateThread = None
 _gpuinfo = GpuInfoModel()
 _mainView = None
+_detailView = None
+_detailIsOpen = False
 while True:
     try:
         # init()
