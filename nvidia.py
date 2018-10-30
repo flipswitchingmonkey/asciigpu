@@ -1,3 +1,5 @@
+# Original Source: https://github.com/ganglia/gmond_python_modules/blob/master/gpu/nvidia/python_modules/nvidia.py
+
 # NVIDIA GPU metric module using the Python bindings for NVML
 #
 # (C)opyright 2011, 2012 Bernard Li <bernard@vanhpc.org>
@@ -192,14 +194,15 @@ def gpu_device_handler(name):
         # % calculation (diff/10)*100/10^9
         rate = diff / 100000000
         violation_dur[gpu_id] = newTime
-        print (rate)
+        # print (rate)
         return rate
     elif (metric == 'process'):
         procs = nvmlDeviceGetComputeRunningProcesses(gpu_device)
         return len(procs)
     else:
-        print ("Handler for %s not implemented, please fix in gpu_device_handler()" % metric)
-        os._exit(1)
+        # print ("Handler for %s not implemented, please fix in gpu_device_handler()" % metric)
+        # os._exit(1)
+        return "n/a"
 
 def metric_init(params):
     global descriptors
