@@ -417,11 +417,6 @@ def main(screen, scene):
         Scene([_mainView], -1, name="Main"),
         Scene([_detailView], -1, name="Detail")
     ]
-    # scenes = [
-    #     Scene([ListView(screen, contacts)], -1, name="Main"),
-    #     Scene([ContactView(screen, contacts)], -1, name="Edit Contact")
-    # ]
-
     screen.play(scenes, stop_on_resize=True, start_scene=scene, unhandled_input=global_shortcuts)
 
 
